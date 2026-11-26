@@ -186,7 +186,7 @@ const diff=(a,b)=>Math.round((new Date(a+'T00:00:00Z')-new Date(b+'T00:00:00Z'))
 const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-3);
 const COL=['#1a73e8','#ea4335','#188038','#f29900','#a142f4','#12b5cb','#e8710a'];
 const colr=s=>COL[[...s].reduce((a,c)=>a+c.charCodeAt(0),0)%COL.length];
-let db={c:[],e:[]},sel='all',flt='all',q='',ed=null,K={},T=today(),VIS=[],mem={},sv,srt0='o',NEW=null,AN=1,rf='',rt='';
+let db={c:[],e:[]},sel='all',flt='all',q='',ed=null,K={},T=today(),VIS=[],mem={},sv,srt0='o',NEW=null,AN=1;
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return mem[k]??null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){mem[k]=v}}};
 try{const d=JSON.parse(ls.get('mann-cab'));if(d&&Array.isArray(d.c)&&Array.isArray(d.e))db=d}catch(e){}
 const save=()=>{ls.set('mann-cab',JSON.stringify(db));qsave()};
@@ -255,11 +255,10 @@ function render(){
  $('#tp').innerHTML=al&&top.length?'<small style="color:var(--tx2)">Top dues:</small>'+top.map(x=>`<button class="tp" data-c="${x.c.id}"><i style="width:${Math.max(6,x.o/mx*100)}%"></i><span>${E(x.c.name)} · ${fm(x.o)}</span></button>`).join(''):'';
  const srt=[...all].sort(byD),bal={},run={};
  srt.forEach(e=>{run[e.c]=(run[e.c]||0)+(e.t=='b'?e.a:-e.a);bal[e.id]=run[e.c]});
- const rows=VIS=srt.filter(e=>(flt=='all'||(flt=='pend'&&!e.v)||(flt=='done'&&e.v)||(flt=='od'&&K[e.id]?.od)||(flt=='soon'&&sn.includes(e))||(flt=='mo'&&e.d.slice(0,7)==T.slice(0,7)))&&(!rf||e.d>=rf)&&(!rt||e.d<=rt)&&(!q||[e.ref,e.n,cname(e.c)].join(' ').toLowerCase().includes(q)));
+ const rows=VIS=srt.filter(e=>(flt=='all'||(flt=='pend'&&!e.v)||(flt=='done'&&e.v)||(flt=='od'&&K[e.id]?.od)||(flt=='soon'&&sn.includes(e))||(flt=='mo'&&e.d.slice(0,7)==T.slice(0,7)))&&(!q||[e.ref,e.n,cname(e.c)].join(' ').toLowerCase().includes(q)));
  const sr=stat(rows);
  $('#lh').innerHTML=`<div><h2>${al?'All creditors':E(cur?.name)}</h2><small>${al?'Combined ledger':E([cur?.phone,(cur?.days??30)+' days credit',cur?.note].filter(Boolean).join(' · '))}</small></div><div style="flex:1"></div>
  <div class="chips">${[['all','All'],['pend','Pending audit'],['done','Audited'],['od','Overdue'],['soon','Due ≤7d'],['mo','This month']].map(([k,l])=>`<button class="chip ${flt==k?'on':''}" data-f="${k}">${l}</button>`).join('')}</div>
- <div class="rng"><span>From</span><input type="date" id="rf" value="${rf}"><span>To</span><input type="date" id="rt" value="${rt}">${rf||rt?'<button class="chip" data-x="clr">Clear</button>':''}</div>
  ${al?'':`<button class="btn txt" data-x="pay">Pay balance</button><button class="btn txt" data-x="wa">WhatsApp</button><button class="ib" data-x="editc" aria-label="Edit creditor">${ic('edit')}</button><button class="ib" data-x="delc" aria-label="Delete creditor" style="color:var(--rt)">${ic('del')}</button>`}<button class="btn txt" data-x="verify">Verify shown</button>`;
  const tw=$('#tw');
  if(!rows.length){tw.innerHTML=`<div class="em"><p>${all.length?'No entries match this filter.':db.c.length?'No entries yet. Use the entry bar below.':'Welcome! Type a creditor name in the entry bar below and add the first bill.'}</p></div>`;return}
@@ -311,7 +310,7 @@ function formC(c){
 function waMsg(c){const es=db.e.filter(e=>e.c==c.id),s=stat(es),od=odv(es);
  return `Hello ${c.name},\nAs per our books (${fd(T)}):\nTotal billed: ${fm(s.bill)}\nTotal paid: ${fm(s.paid)}\nBalance payable: ${fm(s.out)}${od?`\nOf which overdue: ${fm(od)}`:''}\nPlease confirm / reconcile at your end. Thank you.`}
 function sendWA(c){let p=(c.phone||'').replace(/\D/g,'');if(!p){toast('Add a phone number first (edit creditor)');return formC(c)}if(p.length==10)p='91'+p;window.open('https://wa.me/'+p+'?text='+encodeURIComponent(waMsg(c)),'_blank')}
-function payBal(c){const o=stat(db.e.filter(e=>e.c==c.id)).out;if(!(o>0))return toast('No balance outstanding for '+c.name);
+async function payBal(c){const o=stat(db.e.filter(e=>e.c==c.id)).out;if(!(o>0))return toast('No balance outstanding for '+c.name);if(!await askPin('Enter PIN to pay balance'))return;
  if(ed)resetDock();$('#rp').checked=true;$('#dc').value=c.name;$('#dd').value=today();$('#da').value=o;$('#dr').value='';$('#dn').value='Full settlement';$('#dk').classList.add('open');$('#da').select();toast('Review the amount, then press Add entry')}
 function rep(e){if(ed)resetDock();$(e.t=='b'?'#rb':'#rp').checked=true;$('#dc').value=cname(e.c);$('#dd').value=today();$('#da').value=e.a;$('#dr').value='';$('#dn').value=e.n||'';$('#dk').classList.add('open');$('#da').select();toast('Copied. Change what you need, then press Add entry')}
 
@@ -326,7 +325,6 @@ document.addEventListener('click',ev=>{
  if(a){const e=db.e.find(z=>z.id==a.closest('tr').dataset.id),k=a.dataset.a;if(!e)return;
   if(k=='v'){e.v=e.v?0:today();save();render();toast(e.v&&db.e.every(z=>z.v)?'🎉 Every entry is audited':e.v?'Marked as audited':'Marked as pending')}if(k=='e')editE(e);if(k=='c')rep(e);if(k=='d')delE(e.id)}
  if(x){const k=x.dataset.x,cu=db.c.find(z=>z.id==sel);
-  if(k=='clr'){rf=rt='';render()}
   if(k=='editc'&&cu)formC(cu);if(k=='delc'&&cu)delC(sel);if(k=='wa'&&cu)sendWA(cu);if(k=='pay'&&cu)payBal(cu);
   if(k=='verify'){const p=VIS.filter(e=>!e.v);if(!p.length)return toast('Nothing pending in this view');const u=snap();p.forEach(e=>e.v=today());save();bar();render();toast(p.length+' entries marked as audited',u)}}
 });
